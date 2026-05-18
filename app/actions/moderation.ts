@@ -36,7 +36,8 @@ export async function moderatePostAction(formData: FormData) {
   if (!post_id || !nextStatus) moderatorError("/moderator", "Некорректное действие модерации");
 
   const { data: post, error: readError } = await supabase.from("posts").select("id,author_id,title").eq("id", post_id).single();
-  if (readError) moderatorError("/moderator", `Публикация не найдена: ${readError.message}`);
+  if (readError || !post) moderatorError("/moderator", `Публикация не найдена: ${readError?.message || "нет данных"}`);
+  const postData = post!;
 
   const { error: updateError } = await supabase
     .from("posts")
@@ -58,15 +59,110 @@ export async function moderatePostAction(formData: FormData) {
   if (logError) moderatorError("/moderator", `Статус изменён, но запись в журнал не создана: ${logError.message}`);
 
   await supabase.from("notifications").insert({
-    user_id: post.author_id,
+    user_id: postData.author_id,
     title: "Решение модерации",
-    body: `${POST_ACTION_TO_MESSAGE[action]}: ${post.title}${reason ? `. Комментарий: ${reason}` : ""}`,
+    body: `${POST_ACTION_TO_MESSAGE[action]}: ${postData.title}${reason ? `. Комментарий: ${reason}` : ""}`,
   });
 
   revalidatePath("/moderator");
   revalidatePath("/app");
   revalidatePath(`/app/post/${post_id}`);
   redirectWithParams("/moderator", { message: POST_ACTION_TO_MESSAGE[action] });
+}
+
+async function countResolvedReportsFromDifferentUsers(
+  supabase: any,
+  targetType: "post" | "comment",
+  targetId: string,
+) {
+  const query = supabase
+    .from("reports")
+    .select("reporter_id")
+    .eq("target_type", targetType)
+    .eq("status", "resolved");
+
+  if (targetType === "post") query.eq("post_id", targetId);
+  else query.eq("comment_id", targetId);
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+  return new Set((data ?? []).map((report: { reporter_id: string }) => report.reporter_id).filter(Boolean)).size;
+}
+
+async function autoDeleteTargetIfNeeded(
+  supabase: any,
+  moderatorId: string,
+  report: { target_type: string; post_id: string | null; comment_id: string | null },
+  resolution: string,
+) {
+  if (report.target_type !== "post" && report.target_type !== "comment") return null;
+
+  const targetType = report.target_type as "post" | "comment";
+  const targetId = targetType === "post" ? report.post_id : report.comment_id;
+  if (!targetId) return null;
+
+  const approvedCount = await countResolvedReportsFromDifferentUsers(supabase, targetType, targetId);
+  if (approvedCount < 3) return { deleted: false, approvedCount };
+
+  if (targetType === "post") {
+    const { data: post, error: readError } = await supabase
+      .from("posts")
+      .select("id,author_id,title")
+      .eq("id", targetId)
+      .maybeSingle();
+
+    if (readError) throw new Error(readError.message);
+    if (!post) return { deleted: false, approvedCount };
+
+    const { error: logError } = await supabase.from("moderation_logs").insert({
+      moderator_id: moderatorId,
+      target_type: "post",
+      post_id: targetId,
+      action: "auto_delete_after_reports",
+      reason: resolution || "Автоудаление: 3 подтверждённые жалобы от разных пользователей",
+    });
+    if (logError) throw new Error(logError.message);
+
+    const { error: deleteError } = await supabase.from("posts").delete().eq("id", targetId);
+    if (deleteError) throw new Error(deleteError.message);
+
+    await supabase.from("notifications").insert({
+      user_id: post.author_id,
+      title: "Публикация удалена",
+      body: `Публикация «${post.title}» удалена автоматически: набралось 3 подтверждённые жалобы от разных пользователей.`,
+    });
+
+    return { deleted: true, approvedCount };
+  }
+
+  const { data: comment, error: readError } = await supabase
+    .from("comments")
+    .select("id,post_id,user_id,body")
+    .eq("id", targetId)
+    .maybeSingle();
+
+  if (readError) throw new Error(readError.message);
+  if (!comment) return { deleted: false, approvedCount };
+
+  const { error: logError } = await supabase.from("moderation_logs").insert({
+    moderator_id: moderatorId,
+    target_type: "comment",
+    action: "auto_delete_after_reports",
+    reason: resolution || "Автоудаление: 3 подтверждённые жалобы от разных пользователей",
+  });
+  if (logError) throw new Error(logError.message);
+
+  const { error: deleteError } = await supabase.from("comments").delete().eq("id", targetId);
+  if (deleteError) throw new Error(deleteError.message);
+
+  await supabase.from("notifications").insert({
+    user_id: comment.user_id,
+    title: "Комментарий удалён",
+    body: "Комментарий удалён автоматически: набралось 3 подтверждённые жалобы от разных пользователей.",
+  });
+
+  revalidatePath(`/app/post/${comment.post_id}`);
+  return { deleted: true, approvedCount };
 }
 
 export async function resolveReportAction(formData: FormData) {
@@ -76,6 +172,15 @@ export async function resolveReportAction(formData: FormData) {
   const resolution = String(formData.get("resolution") ?? "").trim();
 
   if (!report_id || !REPORT_STATUSES.has(status)) moderatorError("/moderator/reports", "Некорректное решение по жалобе");
+
+  const { data: report, error: reportError } = await supabase
+    .from("reports")
+    .select("id,target_type,post_id,comment_id")
+    .eq("id", report_id)
+    .single();
+
+  if (reportError || !report) moderatorError("/moderator/reports", `Жалоба не найдена: ${reportError?.message || "нет данных"}`);
+  const reportData = report!;
 
   const { error: updateError } = await supabase
     .from("reports")
@@ -96,11 +201,30 @@ export async function resolveReportAction(formData: FormData) {
 
   if (logError) moderatorError("/moderator/reports", `Жалоба обновлена, но запись в журнал не создана: ${logError.message}`);
 
+  let autoDeleteResult: { deleted: boolean; approvedCount: number } | null = null;
+  if (status === "resolved") {
+    try {
+      autoDeleteResult = await autoDeleteTargetIfNeeded(supabase, user.id, reportData, resolution);
+    } catch (error) {
+      moderatorError(
+        "/moderator/reports",
+        `Жалоба подтверждена, но автоудаление не выполнено: ${error instanceof Error ? error.message : "неизвестная ошибка"}`,
+      );
+    }
+  }
+
   revalidatePath("/moderator");
   revalidatePath("/moderator/reports");
-  redirectWithParams("/moderator/reports", {
-    message: status === "resolved" ? "Жалоба подтверждена" : status === "rejected" ? "Жалоба отклонена" : "Жалоба взята в работу",
-  });
+  if (reportData.post_id) revalidatePath(`/app/post/${reportData.post_id}`);
+
+  const baseMessage = status === "resolved" ? "Жалоба подтверждена" : status === "rejected" ? "Жалоба отклонена" : "Жалоба взята в работу";
+  const autoMessage = autoDeleteResult?.deleted
+    ? ` Цель удалена автоматически: ${autoDeleteResult.approvedCount} подтверждённые жалобы от разных пользователей.`
+    : autoDeleteResult
+      ? ` Подтверждённых жалоб от разных пользователей: ${autoDeleteResult.approvedCount}/3.`
+      : "";
+
+  redirectWithParams("/moderator/reports", { message: `${baseMessage}.${autoMessage}` });
 }
 
 export async function moderateCommentAction(formData: FormData) {
@@ -112,7 +236,8 @@ export async function moderateCommentAction(formData: FormData) {
   if (!comment_id || !["hide", "restore", "delete"].includes(action)) moderatorError("/moderator/comments", "Некорректное действие с комментарием");
 
   const { data: comment, error: readError } = await supabase.from("comments").select("id,post_id,user_id,body").eq("id", comment_id).single();
-  if (readError) moderatorError("/moderator/comments", `Комментарий не найден: ${readError.message}`);
+  if (readError || !comment) moderatorError("/moderator/comments", `Комментарий не найден: ${readError?.message || "нет данных"}`);
+  const commentData = comment!;
 
   const request = action === "delete"
     ? supabase.from("comments").delete().eq("id", comment_id)
@@ -128,12 +253,12 @@ export async function moderateCommentAction(formData: FormData) {
   });
 
   await supabase.from("notifications").insert({
-    user_id: comment.user_id,
+    user_id: commentData.user_id,
     title: "Решение по комментарию",
     body: action === "hide" ? `Ваш комментарий скрыт. ${reason}` : action === "restore" ? "Ваш комментарий восстановлен" : `Ваш комментарий удалён. ${reason}`,
   });
 
   revalidatePath("/moderator/comments");
-  revalidatePath(`/app/post/${comment.post_id}`);
+  revalidatePath(`/app/post/${commentData.post_id}`);
   redirectWithParams("/moderator/comments", { message: action === "hide" ? "Комментарий скрыт" : action === "restore" ? "Комментарий восстановлен" : "Комментарий удалён" });
 }

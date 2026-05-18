@@ -25,8 +25,8 @@ export async function sendMessageAction(formData: FormData) {
       .insert({ user_a: user.id, user_b: recipient_id })
       .select("id")
       .single();
-    if (conversationError) redirectWithParams("/app/messages", { error: conversationError.message });
-    conversationId = created.id;
+    if (conversationError || !created) redirectWithParams("/app/messages", { error: conversationError?.message || "Не удалось создать диалог" });
+    conversationId = created!.id;
   }
 
   const { error } = await supabase.from("messages").insert({ conversation_id: conversationId, sender_id: user.id, body });
@@ -34,4 +34,26 @@ export async function sendMessageAction(formData: FormData) {
 
   revalidatePath("/app/messages");
   redirectWithParams(`/app/messages/${conversationId}`, { message: "Сообщение отправлено" });
+}
+
+
+export async function deleteMessageAction(formData: FormData) {
+  const { user, supabase } = await requireUser();
+  const message_id = String(formData.get("message_id") ?? "").trim();
+  const conversation_id = String(formData.get("conversation_id") ?? "").trim();
+
+  if (!message_id || !conversation_id) redirectWithParams("/app/messages", { error: "Сообщение не найдено" });
+
+  const { error } = await supabase
+    .from("messages")
+    .delete()
+    .eq("id", message_id)
+    .eq("conversation_id", conversation_id)
+    .eq("sender_id", user.id);
+
+  if (error) redirectWithParams(`/app/messages/${conversation_id}`, { error: error.message });
+
+  revalidatePath("/app/messages");
+  revalidatePath(`/app/messages/${conversation_id}`);
+  redirectWithParams(`/app/messages/${conversation_id}`, { message: "Сообщение удалено" });
 }

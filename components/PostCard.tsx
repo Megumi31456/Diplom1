@@ -27,7 +27,7 @@ export function PostCard({ post, next = "/app" }: { post: any; next?: string }) 
 
       {post.media_url && post.type === "image" && (
         <div className="mt-5 overflow-hidden rounded-3xl border border-white/10">
-          <img src={post.media_url} alt="" className="h-64 w-full object-cover" />
+          <img src={post.media_url} alt="" className="max-h-96 w-full object-contain" />
         </div>
       )}
 

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { redirectWithParams } from "@/lib/redirect";
+import { getUploadedImage, uploadImageToBucket } from "@/lib/supabase/storage";
 
 function arr(value: FormDataEntryValue | null) {
   return String(value ?? "")
@@ -15,10 +16,19 @@ export async function updateProfileAction(formData: FormData) {
   const { user, supabase } = await requireUser();
   const full_name = String(formData.get("full_name") ?? "").trim();
   const bio = String(formData.get("bio") ?? "").trim();
-  const avatar_url = String(formData.get("avatar_url") ?? "").trim();
+  const avatarFile = getUploadedImage(formData, "avatar_file");
+  let avatar_url = String(formData.get("avatar_url") ?? "").trim();
   const interests = arr(formData.get("interests"));
 
   if (!full_name) redirectWithParams("/app/profile", { error: "Введите имя профиля" });
+
+  if (avatarFile) {
+    try {
+      avatar_url = await uploadImageToBucket(supabase, avatarFile, `profiles/${user.id}`);
+    } catch (error) {
+      redirectWithParams("/app/profile", { error: error instanceof Error ? error.message : "Не удалось загрузить аватар" });
+    }
+  }
 
   const { error } = await supabase
     .from("profiles")

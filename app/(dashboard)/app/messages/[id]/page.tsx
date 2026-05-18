@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
-import { sendMessageAction } from "@/app/actions/messages";
+import { deleteMessageAction, sendMessageAction } from "@/app/actions/messages";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,7 @@ export default async function ConversationPage({ params, searchParams }: { param
   ]);
 
   if (!conversation || (conversation.user_a !== user.id && conversation.user_b !== user.id)) notFound();
-  const other = conversation.user_a === user.id ? conversation.userB : conversation.userA;
+  const other = (conversation.user_a === user.id ? conversation.userB : conversation.userA) as any;
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -23,7 +23,22 @@ export default async function ConversationPage({ params, searchParams }: { param
       {sp.error && <p className="mt-6 rounded-2xl bg-red-500/10 p-3 text-sm text-red-200">{sp.error}</p>}
 
       <div className="card mt-8 max-h-[560px] space-y-3 overflow-y-auto">
-        {messages?.map((m: any) => <div key={m.id} className={`rounded-2xl p-4 ${m.sender_id === user.id ? "ml-auto bg-cyan-300 text-slate-950" : "bg-white/10 text-white"} max-w-[80%]`}><p className="text-sm font-bold">{m.sender?.full_name}</p><p className="mt-1 whitespace-pre-line">{m.body}</p><p className="mt-2 text-xs opacity-70">{new Date(m.created_at).toLocaleString("ru-RU")}</p></div>)}
+        {messages?.map((m: any) => (
+          <div key={m.id} className={`rounded-2xl p-4 ${m.sender_id === user.id ? "ml-auto bg-cyan-300 text-slate-950" : "bg-white/10 text-white"} max-w-[80%]`}>
+            <p className="text-sm font-bold">{m.sender?.full_name}</p>
+            <p className="mt-1 whitespace-pre-line">{m.body}</p>
+            <div className="mt-2 flex flex-wrap items-center gap-3 text-xs opacity-70">
+              <span>{new Date(m.created_at).toLocaleString("ru-RU")}</span>
+              {m.sender_id === user.id && (
+                <form action={deleteMessageAction}>
+                  <input type="hidden" name="conversation_id" value={id} />
+                  <input type="hidden" name="message_id" value={m.id} />
+                  <button className="underline">Удалить</button>
+                </form>
+              )}
+            </div>
+          </div>
+        ))}
         {!messages?.length && <p className="text-slate-400">Сообщений пока нет.</p>}
       </div>
 

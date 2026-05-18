@@ -3,10 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { redirectWithParams } from "@/lib/redirect";
+import { getUploadedImage, uploadImageToBucket } from "@/lib/supabase/storage";
 
 const POST_TYPES = new Set(["text", "image", "video", "link"]);
 const VISIBILITIES = new Set(["public", "private"]);
-const POST_STATUSES = new Set(["draft", "pending"]);
+const POST_STATUSES = new Set(["draft", "published"]);
 
 function arr(value: FormDataEntryValue | null) {
   return String(value ?? "")
@@ -27,18 +28,33 @@ export async function createPostAction(formData: FormData) {
 
   const title = String(formData.get("title") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
-  const media_url = String(formData.get("media_url") ?? "").trim() || null;
+  const mediaFile = getUploadedImage(formData, "media_file");
+  const rawMediaUrl = String(formData.get("media_url") ?? "").trim();
   const rawType = String(formData.get("type") ?? "text");
   const rawVisibility = String(formData.get("visibility") ?? "public");
-  const rawStatus = String(formData.get("status") ?? "pending");
-  const type = POST_TYPES.has(rawType) ? rawType : "text";
+  const rawStatus = String(formData.get("status") ?? "published");
+  let type = POST_TYPES.has(rawType) ? rawType : "text";
   const visibility = VISIBILITIES.has(rawVisibility) ? rawVisibility : "public";
   const category_id = String(formData.get("category_id") ?? "").trim() || null;
   const tags = arr(formData.get("tags"));
-  const status = rawStatus === "draft" ? "draft" : visibility === "private" ? "published" : "pending";
+  const status = rawStatus === "draft" ? "draft" : "published";
+
+  let media_url: string | null = rawMediaUrl || null;
 
   if (!title || !description) postError("Укажите название и описание публикации");
   if (!POST_STATUSES.has(rawStatus) && rawStatus) postError("Некорректный статус публикации");
+
+  if (mediaFile) {
+    try {
+      media_url = await uploadImageToBucket(supabase, mediaFile, `posts/${user.id}`);
+      type = "image";
+    } catch (error) {
+      postError(error instanceof Error ? error.message : "Не удалось загрузить изображение");
+    }
+  }
+
+  if (type === "image" && !media_url) postError("Загрузите изображение для публикации");
+  if (type === "image" && rawMediaUrl && !mediaFile) postError("Для публикаций-изображений используйте загрузку файла, а не внешнюю ссылку");
 
   const { error } = await supabase.from("posts").insert({
     author_id: user.id,
@@ -62,7 +78,7 @@ export async function createPostAction(formData: FormData) {
         ? "Черновик сохранён"
         : visibility === "private"
           ? "Приватная публикация создана"
-          : "Публикация создана и отправлена на проверку",
+          : "Публикация опубликована",
   });
 }
 
@@ -71,18 +87,35 @@ export async function updatePostAction(formData: FormData) {
   const post_id = String(formData.get("post_id") ?? "").trim();
   const title = String(formData.get("title") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
-  const media_url = String(formData.get("media_url") ?? "").trim() || null;
+  const mediaFile = getUploadedImage(formData, "media_file");
+  const rawMediaUrl = String(formData.get("media_url") ?? "").trim();
   const rawType = String(formData.get("type") ?? "text");
   const rawVisibility = String(formData.get("visibility") ?? "public");
-  const type = POST_TYPES.has(rawType) ? rawType : "text";
+  let type = POST_TYPES.has(rawType) ? rawType : "text";
   const visibility = VISIBILITIES.has(rawVisibility) ? rawVisibility : "public";
   const category_id = String(formData.get("category_id") ?? "").trim() || null;
   const tags = arr(formData.get("tags"));
   const submit = String(formData.get("submit") ?? "save");
-  const status = submit === "publish" && visibility === "public" ? "pending" : submit === "publish" ? "published" : "draft";
+  const status = submit === "publish" ? "published" : "draft";
+
+  let media_url: string | null = rawMediaUrl || null;
 
   if (!post_id) postError("Публикация не найдена", "/app/profile");
   if (!title || !description) postError("Укажите название и описание публикации", `/app/post/${post_id}/edit`);
+
+  if (mediaFile) {
+    try {
+      media_url = await uploadImageToBucket(supabase, mediaFile, `posts/${user.id}`);
+      type = "image";
+    } catch (error) {
+      postError(error instanceof Error ? error.message : "Не удалось загрузить изображение", `/app/post/${post_id}/edit`);
+    }
+  }
+
+  if (type === "image" && !media_url) postError("Загрузите изображение для публикации", `/app/post/${post_id}/edit`);
+  if (type === "image" && rawMediaUrl && !mediaFile && !rawMediaUrl.includes("/storage/v1/object/public/images/")) {
+    postError("Для публикаций-изображений используйте загрузку файла, а не внешнюю ссылку", `/app/post/${post_id}/edit`);
+  }
 
   const { error } = await supabase
     .from("posts")
@@ -95,7 +128,7 @@ export async function updatePostAction(formData: FormData) {
   revalidatePath("/app");
   revalidatePath(`/app/post/${post_id}`);
   revalidatePath("/moderator");
-  redirectWithParams(`/app/post/${post_id}`, { message: status === "pending" ? "Публикация отправлена на проверку" : "Публикация обновлена" });
+  redirectWithParams(`/app/post/${post_id}`, { message: status === "published" ? "Публикация опубликована" : "Публикация сохранена как черновик" });
 }
 
 export async function deletePostAction(formData: FormData) {
@@ -138,6 +171,27 @@ export async function commentAction(formData: FormData) {
 
   revalidatePath(`/app/post/${post_id}`);
   redirectWithParams(`/app/post/${post_id}`, { message: "Комментарий добавлен" });
+}
+
+
+export async function deleteCommentAction(formData: FormData) {
+  const { user, supabase } = await requireUser();
+  const comment_id = String(formData.get("comment_id") ?? "").trim();
+  const post_id = String(formData.get("post_id") ?? "").trim();
+
+  if (!comment_id || !post_id) redirectWithParams(`/app/post/${post_id || ""}`, { error: "Комментарий не найден" });
+
+  const { error } = await supabase
+    .from("comments")
+    .delete()
+    .eq("id", comment_id)
+    .eq("post_id", post_id)
+    .eq("user_id", user.id);
+
+  if (error) redirectWithParams(`/app/post/${post_id}`, { error: error.message });
+
+  revalidatePath(`/app/post/${post_id}`);
+  redirectWithParams(`/app/post/${post_id}`, { message: "Комментарий удалён" });
 }
 
 export async function reportPostAction(formData: FormData) {

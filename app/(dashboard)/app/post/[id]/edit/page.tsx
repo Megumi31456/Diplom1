@@ -16,14 +16,20 @@ export default async function EditPostPage({ params, searchParams }: { params: P
   return (
     <div className="max-w-3xl">
       <h1 className="text-4xl font-black">Редактирование публикации</h1>
-      <p className="mt-2 text-slate-400">Черновики, отклонённые и возвращённые на доработку материалы можно снова отправить на модерацию.</p>
+      <p className="mt-2 text-slate-400">Измените материал и опубликуйте его сразу или сохраните как черновик.</p>
       {sp.error && <p className="mt-6 rounded-2xl bg-red-500/10 p-3 text-sm text-red-200">{sp.error}</p>}
 
-      <form action={updatePostAction} className="card mt-8 space-y-4">
+      <form action={updatePostAction} className="card mt-8 space-y-4" encType="multipart/form-data">
         <input type="hidden" name="post_id" value={post.id} />
         <input className="input" name="title" defaultValue={post.title} placeholder="Название" required />
         <textarea className="input min-h-36" name="description" defaultValue={post.description} placeholder="Описание" required />
-        <input className="input" name="media_url" defaultValue={post.media_url ?? ""} placeholder="Ссылка на изображение / видео / материал" />
+        {post.media_url && post.type === "image" && <img src={post.media_url} alt="Текущее изображение" className="max-h-72 w-full rounded-3xl border border-white/10 object-contain" />}
+        <label className="block space-y-2">
+          <span className="text-sm font-semibold text-slate-300">Заменить изображение публикации</span>
+          <input className="input" name="media_file" type="file" accept="image/*" />
+          <span className="block text-xs text-slate-500">Новый файл будет загружен в bucket <b>images</b>. Если файл не выбран, сохранится текущая ссылка.</span>
+        </label>
+        <input className="input" name="media_url" defaultValue={post.media_url ?? ""} placeholder="Текущая ссылка из Storage или ссылка для типа Видео/Ссылка" />
         <div className="grid gap-4 md:grid-cols-3">
           <select className="input" name="type" defaultValue={post.type}><option value="text">Текст</option><option value="image">Изображение</option><option value="video">Видео</option><option value="link">Ссылка</option></select>
           <select className="input" name="visibility" defaultValue={post.visibility}><option value="public">Публично</option><option value="private">Приватно</option></select>
@@ -31,7 +37,7 @@ export default async function EditPostPage({ params, searchParams }: { params: P
         </div>
         <input className="input" name="tags" defaultValue={(post.tags ?? []).join(", ")} placeholder="Теги через запятую" />
         <div className="flex flex-wrap gap-3">
-          <button name="submit" value="publish" className="btn-primary">Отправить на модерацию</button>
+          <button name="submit" value="publish" className="btn-primary">Опубликовать</button>
           <button name="submit" value="save" className="btn-secondary">Сохранить черновик</button>
         </div>
       </form>
