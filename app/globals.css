@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+:root { --background: #07111f; --foreground: #f8fafc; }
+body { background: var(--background); color: var(--foreground); font-family: Arial, Helvetica, sans-serif; }
+.input { @apply w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-300; }
+.btn-primary { @apply inline-flex items-center justify-center rounded-2xl bg-cyan-300 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-white; }
+.btn-secondary { @apply inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10; }
+.card { @apply rounded-3xl border border-white/10 bg-white/[0.06] p-6 shadow-2xl shadow-black/20 backdrop-blur; }
+.badge { @apply rounded-full border border-white/10 bg-white/10 px-3 py-1 text-xs text-slate-200; }
+
+select.input { color-scheme: dark; }
+.input option, .input optgroup { background-color: #0f172a; color: #f8fafc; }
+.input option:checked { background-color: #155e75; color: #ffffff; }
