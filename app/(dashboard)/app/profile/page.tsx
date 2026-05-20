@@ -22,7 +22,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
       {sp.error && <p className="mt-6 rounded-2xl bg-red-500/10 p-3 text-sm text-red-200">{sp.error}</p>}
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[420px_1fr]">
-        <form action={updateProfileAction} className="card space-y-4" encType="multipart/form-data">
+        <form action={updateProfileAction} className="card space-y-4">
           <h2 className="text-2xl font-black">Личные данные</h2>
           <input className="input" name="full_name" defaultValue={profile?.full_name ?? ""} placeholder="Имя" required />
           {profile?.avatar_url && <img src={profile.avatar_url} alt="Текущий аватар" className="h-24 w-24 rounded-3xl object-cover" />}

@@ -12,7 +12,7 @@ export default async function CreatePostPage({ searchParams }: { searchParams: P
       <p className="mt-2 text-slate-400">Добавьте материал, описание, категорию, теги и выберите режим публикации.</p>
       {params.error && <p className="mt-6 rounded-2xl bg-red-500/10 p-3 text-sm text-red-200">{params.error}</p>}
 
-      <form action={createPostAction} className="card mt-8 space-y-4" encType="multipart/form-data">
+      <form action={createPostAction} className="card mt-8 space-y-4">
         <input className="input" name="title" placeholder="Название" required />
         <textarea className="input min-h-36" name="description" placeholder="Описание" required />
         <label className="block space-y-2">
@@ -22,9 +22,20 @@ export default async function CreatePostPage({ searchParams }: { searchParams: P
         </label>
         <input className="input" name="media_url" placeholder="Ссылка только для типа Видео/Ссылка/Материал" />
         <div className="grid gap-4 md:grid-cols-3">
-          <select className="input" name="type"><option value="text">Текст</option><option value="image">Изображение</option><option value="video">Видео</option><option value="link">Ссылка</option></select>
-          <select className="input" name="visibility"><option value="public">Публично</option><option value="private">Приватно</option></select>
-          <select className="input" name="category_id"><option value="">Категория</option>{categories?.map((c: any) => <option value={c.id} key={c.id}>{c.name}</option>)}</select>
+          <select className="input" name="type">
+            <option value="text">Текст</option>
+            <option value="image">Изображение</option>
+            <option value="video">Видео</option>
+            <option value="link">Ссылка</option>
+          </select>
+          <select className="input" name="visibility">
+            <option value="public">Публично</option>
+            <option value="private">Приватно</option>
+          </select>
+          <select className="input" name="category_id">
+            <option value="">Категория</option>
+            {categories?.map((c: any) => <option value={c.id} key={c.id}>{c.name}</option>)}
+          </select>
         </div>
         <input className="input" name="tags" placeholder="Теги через запятую: дизайн, арт, ui" />
         <div className="flex flex-wrap gap-3">
