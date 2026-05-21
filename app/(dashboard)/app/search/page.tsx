@@ -5,20 +5,24 @@ import { POST_CARD_SELECT } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
-export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string; type?: string; category?: string; sort?: string }> }) {
+export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string; type?: string; category?:  string; tag?: string; sort?: string }> }) { 
   const params = await searchParams;
   const { supabase } = await requireUser();
   const q = (params.q ?? "").trim();
   const type = (params.type ?? "").trim();
   const category = (params.category ?? "").trim();
+  const tag = (params.tag ?? "").trim(); 
   const sort = params.sort === "popular" ? "popular" : "new";
 
-  const { data: categories } = await supabase.from("categories").select("id,name").eq("is_active", true).order("name");
+  const [{ data: categories },{data: tags}] = await Promise.all ([
+    supabase.from("categories").select("id,name").eq("is_active", true).order("name"),
+    supabase.from("tags").select("id,name").eq("is_active", true).order("name"),]);
 
   let postsQuery = supabase.from("posts").select(POST_CARD_SELECT).eq("status", "published").eq("visibility", "public");
   if (q) postsQuery = postsQuery.or(`title.ilike.%${q}%,description.ilike.%${q}%`);
   if (type) postsQuery = postsQuery.eq("type", type);
   if (category) postsQuery = postsQuery.eq("category_id", category);
+  if (tag) postsQuery = postsQuery.contains("tags", [tag]);
   postsQuery = postsQuery.order(sort === "popular" ? "likes_count" : "created_at", { ascending: false }).limit(50);
 
   const [postsResult, authorsResult] = await Promise.all([
@@ -29,12 +33,13 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
   return (
     <div>
       <h1 className="text-4xl font-black">Поиск и фильтрация</h1>
-      <p className="mt-2 text-slate-400">Ищите материалы по названию, описанию, типу, категории, популярности и авторам.</p>
+      <p className="mt-2 text-slate-400">Ищите материалы по названию, описанию, типу, категории, тегам, популярности и авторам.</p>
 
-      <form className="card mt-8 grid gap-3 md:grid-cols-[1fr_180px_220px_160px_auto]">
+      <form className="card mt-8 grid gap-3 md:grid-cols-[1fr_150px_160px_140px_130px_auto]">
         <input className="input" name="q" defaultValue={q} placeholder="Название, описание, автор" />
         <select className="input" name="type" defaultValue={type}><option value="">Все типы</option><option value="text">Текст</option><option value="image">Изображение</option><option value="video">Видео</option><option value="link">Ссылка</option></select>
         <select className="input" name="category" defaultValue={category}><option value="">Все категории</option>{categories?.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}</select>
+        <select className="input" name="tag" defaultValue={tag}><option value="">Все теги</option>{tags?.map((t: any) => <option key={t.id} value={t.name}>{t.name}</option>)}</select>
         <select className="input" name="sort" defaultValue={sort}><option value="new">Новые</option><option value="popular">Популярные</option></select>
         <button className="btn-primary">Найти</button>
       </form>
