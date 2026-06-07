@@ -18,7 +18,6 @@ export default async function CreatePostPage({ searchParams }: { searchParams: P
         <label className="block space-y-2">
           <span className="text-sm font-semibold text-slate-300">Изображение публикации</span>
           <input className="input" name="media_file" type="file" accept="image/*" />
-          <span className="block text-xs text-slate-500">Файл будет загружен в Supabase Storage bucket <b>images</b>, а в публикацию сохранится ссылка из хранилища.</span>
         </label>
         <input className="input" name="media_url" placeholder="Ссылка только для типа Видео/Ссылка/Материал" />
         <div className="grid gap-4 md:grid-cols-3">

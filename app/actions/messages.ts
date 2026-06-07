@@ -37,6 +37,35 @@ export async function sendMessageAction(formData: FormData) {
 }
 
 
+
+export async function markConversationReadAction(conversationId: string) {
+  const { user, supabase } = await requireUser();
+  const id = String(conversationId ?? "").trim();
+  if (!id) return false;
+
+  const { data, error } = await supabase
+    .from("messages")
+    .update({ is_read: true })
+    .eq("conversation_id", id)
+    .neq("sender_id", user.id)
+    .eq("is_read", false)
+    .select("id");
+
+  if (error) {
+    console.error("Не удалось отметить сообщения прочитанными:", error.message);
+    return false;
+  }
+
+  if ((data?.length ?? 0) > 0) {
+    revalidatePath("/app", "layout");
+    revalidatePath("/app/messages");
+    revalidatePath(`/app/messages/${id}`);
+    return true;
+  }
+
+  return false;
+}
+
 export async function deleteMessageAction(formData: FormData) {
   const { user, supabase } = await requireUser();
   const message_id = String(formData.get("message_id") ?? "").trim();

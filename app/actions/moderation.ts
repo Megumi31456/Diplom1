@@ -128,8 +128,10 @@ async function autoDeleteTargetIfNeeded(
 
     await supabase.from("notifications").insert({
       user_id: post.author_id,
-      title: "Публикация удалена",
-      body: `Публикация «${post.title}» удалена автоматически: набралось 3 подтверждённые жалобы от разных пользователей.`,
+      title: "Решение модерации: публикация удалена",
+      body: `Публикация «${post.title}» удалена: подтверждена третья жалоба.`,
+      type: "moderation",
+      metadata: { decision: "deleted", approved_reports_count: approvedCount, target_type: "post", target_title: post.title },
     });
 
     return { deleted: true, approvedCount };
@@ -157,8 +159,10 @@ async function autoDeleteTargetIfNeeded(
 
   await supabase.from("notifications").insert({
     user_id: comment.user_id,
-    title: "Комментарий удалён",
-    body: "Комментарий удалён автоматически: набралось 3 подтверждённые жалобы от разных пользователей.",
+    title: "Решение модерации: комментарий удалён",
+    body: "Комментарий удалён: подтверждена третья жалоба.",
+    type: "moderation",
+    metadata: { decision: "deleted", approved_reports_count: approvedCount, target_type: "comment" },
   });
 
   revalidatePath(`/app/post/${comment.post_id}`);
@@ -210,6 +214,28 @@ export async function resolveReportAction(formData: FormData) {
         "/moderator/reports",
         `Жалоба подтверждена, но автоудаление не выполнено: ${error instanceof Error ? error.message : "неизвестная ошибка"}`,
       );
+    }
+  }
+
+  if (status === "resolved" && autoDeleteResult && !autoDeleteResult.deleted) {
+    let targetOwnerId: string | null = null;
+    let targetLabel = reportData.target_type === "post" ? "публикацию" : "комментарий";
+    if (reportData.target_type === "post" && reportData.post_id) {
+      const { data: target } = await supabase.from("posts").select("author_id,title").eq("id", reportData.post_id).maybeSingle();
+      targetOwnerId = target?.author_id ?? null;
+      if (target?.title) targetLabel = `публикацию «${target.title}»`;
+    } else if (reportData.target_type === "comment" && reportData.comment_id) {
+      const { data: target } = await supabase.from("comments").select("user_id").eq("id", reportData.comment_id).maybeSingle();
+      targetOwnerId = target?.user_id ?? null;
+    }
+    if (targetOwnerId) {
+      await supabase.from("notifications").insert({
+        user_id: targetOwnerId,
+        title: "Решение модерации по жалобе",
+        body: `Жалоба на ${targetLabel} одобрена. Решение: предупреждение.${resolution ? ` Комментарий модератора: ${resolution}` : ""}`,
+        type: "moderation",
+        metadata: { decision: "warning", approved_reports_count: autoDeleteResult.approvedCount, target_type: reportData.target_type },
+      });
     }
   }
 

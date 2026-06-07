@@ -59,7 +59,7 @@ export default async function CollectionPage({ params, searchParams }: { params:
       <div className="mt-4 grid gap-5 lg:grid-cols-2">
         {items?.map((item: any) => item.post && (
           <div key={item.post_id} className="space-y-2">
-            <PostCard post={item.post} next={`/app/collections/${id}`} />
+            <PostCard post={item.post} userId={user.id} isSaved={isOwner} next={`/app/collections/${id}`} />
             {isOwner && (
               <form action={removePostFromCollectionAction}>
                 <input type="hidden" name="collection_id" value={id} />

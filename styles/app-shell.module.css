@@ -1,0 +1,19 @@
+.shell { min-height: 100vh; background: radial-gradient(circle at top left, #145369, transparent 30%), radial-gradient(circle at top right, #4f1d95, transparent 28%), #07111f; }
+.sidebar { position: fixed; inset: 0 auto 0 0; display: none; height: 100%; width: 18rem; border-right: 1px solid rgb(255 255 255 / .1); background: rgb(2 6 23 / .55); padding: 1.5rem; backdrop-filter: blur(12px); }
+.brand { display: flex; align-items: center; gap: .75rem; font-size: 1.25rem; font-weight: 900; }
+.logo { display: grid; height: 2.75rem; width: 2.75rem; place-items: center; border-radius: 1rem; background: #67e8f9; color: #0f172a; }
+.nav { margin-top: 2rem; display: flex; flex-direction: column; gap: .5rem; }
+.navLink { display: flex; align-items: center; gap: .75rem; border-radius: 1rem; padding: .75rem 1rem; font-size: .875rem; color: #cbd5e1; }
+.navLink:hover { background: rgb(255 255 255 / .1); color: white; }
+.moderator { color: #cffafe; }
+.admin { color: #fae8ff; }
+.account { position: absolute; right: 1.5rem; bottom: 1.5rem; left: 1.5rem; border-radius: 1.5rem; background: rgb(255 255 255 / .05); padding: 1rem; }
+.accountName { font-size: .875rem; font-weight: 700; }
+.role { font-size: .75rem; color: #94a3b8; }
+.logoutForm { margin-top: .75rem; }
+.logout { font-size: .75rem; color: #cbd5e1; text-decoration: underline; }
+.mainInner { margin: 0 auto; max-width: 80rem; padding: 1.25rem; }
+@media (min-width: 768px) { .mainInner { padding: 2rem; } }
+@media (min-width: 1280px) { .sidebar { display: block; } .main { padding-left: 18rem; } }
+.navIcon { position: relative; display: inline-flex; }
+.unreadDot { position: absolute; top: -.2rem; right: -.25rem; width: .55rem; height: .55rem; border-radius: 9999px; background: #3b82f6; box-shadow: 0 0 0 2px #07111f; }

@@ -15,11 +15,12 @@ export default async function PostPage({ params, searchParams }: Props) {
   const sp = await searchParams;
   const { user, supabase } = await requireUser();
 
-  const [{ data: post, error }, { data: comments }, { data: collections }, { data: liked }] = await Promise.all([
+  const [{ data: post, error }, { data: comments }, { data: collections }, { data: liked }, { data: saved }] = await Promise.all([
     supabase.from("posts").select(POST_CARD_SELECT + ", moderation_note").eq("id", id).single(),
     supabase.from("comments").select("id,body,is_hidden,created_at,user_id,author:profiles!comments_user_id_fkey(id,full_name,avatar_url)").eq("post_id", id).order("created_at", { ascending: true }),
     supabase.from("collections").select("id,title").eq("owner_id", user.id).order("created_at", { ascending: false }),
     supabase.from("likes").select("post_id").eq("post_id", id).eq("user_id", user.id).maybeSingle(),
+    supabase.from("collection_items").select("post_id,collections!inner(owner_id)").eq("post_id", id).eq("collections.owner_id", user.id).limit(1).maybeSingle(),
   ]);
 
   if (error || !post) notFound();
@@ -61,7 +62,7 @@ export default async function PostPage({ params, searchParams }: Props) {
           <form action={toggleLikeAction}>
             <input type="hidden" name="post_id" value={postData.id} />
             <input type="hidden" name="next" value={`/app/post/${postData.id}`} />
-            <button className="btn-primary w-full">{liked ? "Убрать лайк" : "Лайк"} · {likesCount}</button>
+            <button className={`btn-primary w-full ${liked ? "!bg-blue-600 !text-white" : ""}`}>{liked ? "♥ Убрать лайк" : "♡ Лайк"} · {likesCount}</button>
           </form>
 
           <form id="save" action={addPostToCollectionAction} className="flex gap-2 md:col-span-2">
@@ -70,7 +71,7 @@ export default async function PostPage({ params, searchParams }: Props) {
               <option value="">Сохранить в коллекцию</option>
               {collections?.map((c: any) => <option key={c.id} value={c.id}>{c.title}</option>)}
             </select>
-            <button className="btn-secondary">Сохранить</button>
+            <button className={`btn-secondary ${saved ? "!border-blue-400 !bg-blue-500/20 !text-blue-200" : ""}`}>{saved ? "★ Сохранено" : "☆ Сохранить"}</button>
           </form>
         </div>
 

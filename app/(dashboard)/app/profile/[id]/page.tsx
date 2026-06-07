@@ -61,7 +61,7 @@ export default async function PublicProfilePage({ params, searchParams }: { para
 
       <h2 className="mt-10 text-2xl font-black">Публикации автора</h2>
       <div className="mt-4 grid gap-5 lg:grid-cols-2">
-        {posts?.map((post: any) => <PostCard key={post.id} post={post} next={`/app/profile/${id}`} />)}
+        {posts?.map((post: any) => <PostCard key={post.id} post={post} userId={user.id} next={`/app/profile/${id}`} />)}
       </div>
       {!posts?.length && <div className="card mt-4 text-slate-400">У автора пока нет публичных публикаций.</div>}
 

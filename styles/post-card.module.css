@@ -1,0 +1,18 @@
+.card { overflow: hidden; }
+.header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.title { font-size: 1.25rem; line-height: 1.75rem; font-weight: 900; }
+.title:hover, .author:hover, .profile:hover { color: #a5f3fc; }
+.meta { margin-top: .25rem; font-size: .875rem; color: #94a3b8; }
+.media { margin-top: 1.25rem; overflow: hidden; border-radius: 1.5rem; border: 1px solid rgb(255 255 255 / .1); }
+.image { max-height: 24rem; width: 100%; object-fit: contain; }
+.attachment { margin-top: 1rem; display: inline-block; font-size: .875rem; font-weight: 600; color: #67e8f9; }
+.attachment:hover { color: #cffafe; }
+.description { margin-top: 1rem; display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; white-space: pre-line; color: #cbd5e1; }
+.tags { margin-top: 1.25rem; display: flex; flex-wrap: wrap; gap: .5rem; }
+.actions { margin-top: 1.5rem; display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; font-size: .875rem; color: #cbd5e1; }
+.action { display: flex; align-items: center; gap: .25rem; border-radius: 9999px; background: rgb(255 255 255 / .05); padding: .5rem .75rem; }
+.action:hover { background: rgb(255 255 255 / .1); }
+.profile { margin-left: auto; display: flex; align-items: center; gap: .25rem; font-size: .75rem; color: #94a3b8; }
+
+.activeAction { background: rgb(37 99 235 / .22); color: #60a5fa; box-shadow: inset 0 0 0 1px rgb(96 165 250 / .35); }
+.activeAction:hover { background: rgb(37 99 235 / .32); color: #93c5fd; }

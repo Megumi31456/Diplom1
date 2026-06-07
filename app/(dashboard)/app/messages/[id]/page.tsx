@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { deleteMessageAction, sendMessageAction } from "@/app/actions/messages";
+import { MarkConversationRead } from "@/components/MarkConversationRead";
 
 export const dynamic = "force-dynamic";
 
@@ -14,10 +15,12 @@ export default async function ConversationPage({ params, searchParams }: { param
   ]);
 
   if (!conversation || (conversation.user_a !== user.id && conversation.user_b !== user.id)) notFound();
+
   const other = (conversation.user_a === user.id ? conversation.userB : conversation.userA) as any;
 
   return (
     <div className="mx-auto max-w-3xl">
+      <MarkConversationRead conversationId={id} />
       <h1 className="text-4xl font-black">Диалог с {other?.full_name || "пользователем"}</h1>
       {sp.message && <p className="mt-6 rounded-2xl bg-emerald-500/10 p-3 text-sm text-emerald-200">{sp.message}</p>}
       {sp.error && <p className="mt-6 rounded-2xl bg-red-500/10 p-3 text-sm text-red-200">{sp.error}</p>}
