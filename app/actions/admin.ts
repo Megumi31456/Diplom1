@@ -47,7 +47,7 @@ export async function createCategoryAction(formData: FormData) {
 
   if (!name) adminError("/admin/categories", "Введите название категории");
 
-  const { error: insertError } = await supabase.from("categories").insert({ name, created_by: user.id });
+  const { error: insertError } = await supabase.from("categories").insert({ name });
   if (insertError) adminError("/admin/categories", insertError.message);
 
   await supabase.from("admin_audit_logs").insert({ admin_id: user.id, action: "create_category", details: { name } });
