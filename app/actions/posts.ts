@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { redirectWithParams } from "@/lib/redirect";
 import { getUploadedImage, uploadImageToBucket } from "@/lib/supabase/storage";
+import { getContentRules } from "@/lib/platform-settings";
 
 const POST_TYPES = new Set(["text", "image", "video", "link"]);
 const VISIBILITIES = new Set(["public", "private"]);
@@ -26,6 +27,8 @@ export async function createPostAction(formData: FormData) {
   if (!profile) postError("Профиль пользователя не найден. Выйдите из аккаунта и войдите снова.");
   if (profile.status === "blocked") postError("Ваш аккаунт заблокирован. Создание публикаций недоступно.");
 
+  const rules = await getContentRules(supabase);
+
   const title = String(formData.get("title") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   const mediaFile = getUploadedImage(formData, "media_file");
@@ -37,7 +40,7 @@ export async function createPostAction(formData: FormData) {
   const visibility = VISIBILITIES.has(rawVisibility) ? rawVisibility : "public";
   const category_id = String(formData.get("category_id") ?? "").trim() || null;
   const tags = arr(formData.get("tags"));
-  const status = rawStatus === "draft" ? "draft" : "published";
+  const status = rawStatus === "draft" ? "draft" : visibility === "public" && rules.publication_premoderation ? "pending" : "published";
 
   let media_url: string | null = rawMediaUrl || null;
 
@@ -46,7 +49,7 @@ export async function createPostAction(formData: FormData) {
 
   if (mediaFile) {
     try {
-      media_url = await uploadImageToBucket(supabase, mediaFile, `posts/${user.id}`);
+      media_url = await uploadImageToBucket(supabase, mediaFile, `posts/${user.id}`, { maxUploadMb: rules.max_upload_mb, allowedFormats: rules.allowed_formats });
       type = "image";
     } catch (error) {
       postError(error instanceof Error ? error.message : "Не удалось загрузить изображение");
@@ -76,14 +79,17 @@ export async function createPostAction(formData: FormData) {
     message:
       status === "draft"
         ? "Черновик сохранён"
-        : visibility === "private"
-          ? "Приватная публикация создана"
-          : "Публикация опубликована",
+        : status === "pending"
+          ? "Публикация отправлена на премодерацию"
+          : visibility === "private"
+            ? "Приватная публикация создана"
+            : "Публикация опубликована",
   });
 }
 
 export async function updatePostAction(formData: FormData) {
   const { user, supabase } = await requireUser();
+  const rules = await getContentRules(supabase);
   const post_id = String(formData.get("post_id") ?? "").trim();
   const title = String(formData.get("title") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
@@ -96,7 +102,7 @@ export async function updatePostAction(formData: FormData) {
   const category_id = String(formData.get("category_id") ?? "").trim() || null;
   const tags = arr(formData.get("tags"));
   const submit = String(formData.get("submit") ?? "save");
-  const status = submit === "publish" ? "published" : "draft";
+  const status = submit === "publish" ? (visibility === "public" && rules.publication_premoderation ? "pending" : "published") : "draft";
 
   let media_url: string | null = rawMediaUrl || null;
 
@@ -105,7 +111,7 @@ export async function updatePostAction(formData: FormData) {
 
   if (mediaFile) {
     try {
-      media_url = await uploadImageToBucket(supabase, mediaFile, `posts/${user.id}`);
+      media_url = await uploadImageToBucket(supabase, mediaFile, `posts/${user.id}`, { maxUploadMb: rules.max_upload_mb, allowedFormats: rules.allowed_formats });
       type = "image";
     } catch (error) {
       postError(error instanceof Error ? error.message : "Не удалось загрузить изображение", `/app/post/${post_id}/edit`);
@@ -128,7 +134,7 @@ export async function updatePostAction(formData: FormData) {
   revalidatePath("/app");
   revalidatePath(`/app/post/${post_id}`);
   revalidatePath("/moderator");
-  redirectWithParams(`/app/post/${post_id}`, { message: status === "published" ? "Публикация опубликована" : "Публикация сохранена как черновик" });
+  redirectWithParams(`/app/post/${post_id}`, { message: status === "published" ? "Публикация опубликована" : status === "pending" ? "Публикация отправлена на премодерацию" : "Публикация сохранена как черновик" });
 }
 
 export async function deletePostAction(formData: FormData) {

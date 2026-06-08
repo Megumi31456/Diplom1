@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { redirectWithParams } from "@/lib/redirect";
 import { getUploadedImage, uploadImageToBucket } from "@/lib/supabase/storage";
+import { getContentRules } from "@/lib/platform-settings";
 
 function arr(value: FormDataEntryValue | null) {
   return String(value ?? "")
@@ -14,6 +15,7 @@ function arr(value: FormDataEntryValue | null) {
 
 export async function updateProfileAction(formData: FormData) {
   const { user, supabase } = await requireUser();
+  const rules = await getContentRules(supabase);
   const full_name = String(formData.get("full_name") ?? "").trim();
   const bio = String(formData.get("bio") ?? "").trim();
   const avatarFile = getUploadedImage(formData, "avatar_file");
@@ -24,7 +26,7 @@ export async function updateProfileAction(formData: FormData) {
 
   if (avatarFile) {
     try {
-      avatar_url = await uploadImageToBucket(supabase, avatarFile, `profiles/${user.id}`);
+      avatar_url = await uploadImageToBucket(supabase, avatarFile, `profiles/${user.id}`, { maxUploadMb: rules.max_upload_mb, allowedFormats: rules.allowed_formats });
     } catch (error) {
       redirectWithParams("/app/profile", { error: error instanceof Error ? error.message : "Не удалось загрузить аватар" });
     }

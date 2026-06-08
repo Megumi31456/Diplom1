@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/auth";
 import { redirectWithParams } from "@/lib/redirect";
+import { normalizeContentRules } from "@/lib/platform-settings";
 
 const ROLES = new Set(["user", "moderator", "admin"]);
 const STATUSES = new Set(["active", "blocked"]);
@@ -73,12 +74,12 @@ export async function updateCategoryAction(formData: FormData) {
 
 export async function updateSettingsAction(formData: FormData) {
   const { user, supabase } = await requireAdmin();
-  const max_upload_mb = Number(formData.get("max_upload_mb") ?? 20);
-  const allowed_formats = String(formData.get("allowed_formats") ?? "jpg,png,gif,mp4,pdf,txt").split(",").map((x) => x.trim()).filter(Boolean);
-  const auto_hide_report_threshold = Number(formData.get("auto_hide_report_threshold") ?? 5);
-  const publication_premoderation = formData.get("publication_premoderation") === "on";
-
-  const value = { max_upload_mb, allowed_formats, auto_hide_report_threshold, publication_premoderation };
+  const value = normalizeContentRules({
+    max_upload_mb: formData.get("max_upload_mb"),
+    allowed_formats: String(formData.get("allowed_formats") ?? "").split(","),
+    auto_hide_report_threshold: formData.get("auto_hide_report_threshold"),
+    publication_premoderation: formData.get("publication_premoderation") === "on",
+  });
   const { error } = await supabase.from("platform_settings").upsert({ key: "content_rules", value, updated_by: user.id });
   if (error) adminError("/admin/settings", error.message);
 

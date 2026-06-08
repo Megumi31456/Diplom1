@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireModerator } from "@/lib/auth";
 import { redirectWithParams } from "@/lib/redirect";
+import { getContentRules } from "@/lib/platform-settings";
 
 const POST_ACTION_TO_STATUS: Record<string, string> = {
   approve: "published",
@@ -94,6 +95,7 @@ async function autoDeleteTargetIfNeeded(
   moderatorId: string,
   report: { target_type: string; post_id: string | null; comment_id: string | null },
   resolution: string,
+  threshold: number,
 ) {
   if (report.target_type !== "post" && report.target_type !== "comment") return null;
 
@@ -102,7 +104,7 @@ async function autoDeleteTargetIfNeeded(
   if (!targetId) return null;
 
   const approvedCount = await countResolvedReportsFromDifferentUsers(supabase, targetType, targetId);
-  if (approvedCount < 3) return { deleted: false, approvedCount };
+  if (approvedCount < threshold) return { deleted: false, approvedCount };
 
   if (targetType === "post") {
     const { data: post, error: readError } = await supabase
@@ -119,7 +121,7 @@ async function autoDeleteTargetIfNeeded(
       target_type: "post",
       post_id: targetId,
       action: "auto_delete_after_reports",
-      reason: resolution || "Автоудаление: 3 подтверждённые жалобы от разных пользователей",
+      reason: resolution || `Автоудаление: ${threshold} подтверждённых жалоб от разных пользователей`,
     });
     if (logError) throw new Error(logError.message);
 
@@ -129,7 +131,7 @@ async function autoDeleteTargetIfNeeded(
     await supabase.from("notifications").insert({
       user_id: post.author_id,
       title: "Решение модерации: публикация удалена",
-      body: `Публикация «${post.title}» удалена: подтверждена третья жалоба.`,
+      body: `Публикация «${post.title}» удалена: достигнут порог ${threshold} одобренных жалоб.`,
       type: "moderation",
       metadata: { decision: "deleted", approved_reports_count: approvedCount, target_type: "post", target_title: post.title },
     });
@@ -150,7 +152,7 @@ async function autoDeleteTargetIfNeeded(
     moderator_id: moderatorId,
     target_type: "comment",
     action: "auto_delete_after_reports",
-    reason: resolution || "Автоудаление: 3 подтверждённые жалобы от разных пользователей",
+    reason: resolution || `Автоудаление: ${threshold} подтверждённых жалоб от разных пользователей`,
   });
   if (logError) throw new Error(logError.message);
 
@@ -160,7 +162,7 @@ async function autoDeleteTargetIfNeeded(
   await supabase.from("notifications").insert({
     user_id: comment.user_id,
     title: "Решение модерации: комментарий удалён",
-    body: "Комментарий удалён: подтверждена третья жалоба.",
+    body: `Комментарий удалён: достигнут порог ${threshold} одобренных жалоб.`,
     type: "moderation",
     metadata: { decision: "deleted", approved_reports_count: approvedCount, target_type: "comment" },
   });
@@ -171,6 +173,7 @@ async function autoDeleteTargetIfNeeded(
 
 export async function resolveReportAction(formData: FormData) {
   const { user, supabase } = await requireModerator();
+  const rules = await getContentRules(supabase);
   const report_id = String(formData.get("report_id") ?? "").trim();
   const status = String(formData.get("status") ?? "").trim();
   const resolution = String(formData.get("resolution") ?? "").trim();
@@ -208,7 +211,7 @@ export async function resolveReportAction(formData: FormData) {
   let autoDeleteResult: { deleted: boolean; approvedCount: number } | null = null;
   if (status === "resolved") {
     try {
-      autoDeleteResult = await autoDeleteTargetIfNeeded(supabase, user.id, reportData, resolution);
+      autoDeleteResult = await autoDeleteTargetIfNeeded(supabase, user.id, reportData, resolution, rules.auto_hide_report_threshold);
     } catch (error) {
       moderatorError(
         "/moderator/reports",
@@ -247,7 +250,7 @@ export async function resolveReportAction(formData: FormData) {
   const autoMessage = autoDeleteResult?.deleted
     ? ` Цель удалена автоматически: ${autoDeleteResult.approvedCount} подтверждённые жалобы от разных пользователей.`
     : autoDeleteResult
-      ? ` Подтверждённых жалоб от разных пользователей: ${autoDeleteResult.approvedCount}/3.`
+      ? ` Подтверждённых жалоб от разных пользователей: ${autoDeleteResult.approvedCount}/${rules.auto_hide_report_threshold}.`
       : "";
 
   redirectWithParams("/moderator/reports", { message: `${baseMessage}.${autoMessage}` });

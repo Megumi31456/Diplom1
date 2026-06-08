@@ -1,5 +1,4 @@
 const IMAGES_BUCKET = "images";
-const MAX_IMAGE_SIZE = 20 * 1024 * 1024;
 
 const EXTENSIONS_BY_MIME: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -31,18 +30,36 @@ function getImageExtension(file: File) {
   return null;
 }
 
-export async function uploadImageToBucket(supabase: any, file: File, folder: string) {
+type UploadRules = {
+  maxUploadMb: number;
+  allowedFormats: string[];
+};
+
+export async function uploadImageToBucket(
+  supabase: any,
+  file: File,
+  folder: string,
+  rules: UploadRules = { maxUploadMb: 20, allowedFormats: ["jpg", "jpeg", "png", "webp", "gif"] },
+) {
   if (!file.type.startsWith("image/")) {
     throw new Error("Загрузить можно только изображение: JPG, PNG, WEBP или GIF.");
   }
 
-  if (file.size > MAX_IMAGE_SIZE) {
-    throw new Error("Размер изображения не должен превышать 20 МБ.");
+  const maxUploadMb = Math.max(1, Number(rules.maxUploadMb) || 20);
+  if (file.size > maxUploadMb * 1024 * 1024) {
+    throw new Error(`Размер изображения не должен превышать ${maxUploadMb} МБ.`);
   }
 
   const extension = getImageExtension(file);
   if (!extension) {
     throw new Error("Неподдерживаемый формат изображения. Используйте JPG, PNG, WEBP или GIF.");
+  }
+
+  const allowedFormats = new Set(
+    rules.allowedFormats.map((item) => item.trim().toLowerCase().replace(/^\./, "")).map((item) => item === "jpeg" ? "jpg" : item),
+  );
+  if (!allowedFormats.has(extension)) {
+    throw new Error(`Формат .${extension} запрещён настройками платформы.`);
   }
 
   const normalizedFolder = folder.replace(/^\/+|\/+$/g, "");
