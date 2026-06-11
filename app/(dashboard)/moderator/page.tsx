@@ -39,9 +39,6 @@ export default async function ModeratorPage({ searchParams }: { searchParams: Se
   return (
     <div>
       <h1 className="text-4xl font-black">Панель модератора</h1>
-      <p className="mt-2 text-slate-400">
-        Новые публикации теперь публикуются сразу. В модерацию попадают только материалы, на которые пришли жалобы.
-      </p>
 
       {params.message && (
         <p className="mt-6 rounded-2xl bg-emerald-500/10 p-3 text-sm text-emerald-200">{params.message}</p>

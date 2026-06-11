@@ -30,7 +30,6 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
           <label className="block space-y-2">
             <span className="text-sm font-semibold text-slate-300">Фото профиля</span>
             <input className="input" name="avatar_file" type="file" accept="image/*" />
-            <span className="block text-xs text-slate-500">Аватар будет загружен в Supabase Storage bucket <b>images</b>.</span>
           </label>
           <textarea className="input min-h-28" name="bio" defaultValue={profile?.bio ?? ""} placeholder="Описание профиля" />
           <input className="input" name="interests" defaultValue={(profile?.interests ?? []).join(", ")} placeholder="Интересы через запятую: ui, фото, дизайн" />
